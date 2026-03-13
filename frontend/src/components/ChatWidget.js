@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 
+// WhatsApp Green Theme Colors
+const COLORS = {
+  primary: '#25D366',
+  primaryDark: '#128C7E',
+  sent: '#DCF8C6',
+  received: '#FFFFFF',
+  online: '#34B7F1',
+  background: '#ECE5DD',
+  header: '#075E54'
+};
+
 // Utility function to format time
 const formatTime = (date) => {
   return new Date(date).toLocaleTimeString('en-US', {
@@ -16,9 +27,13 @@ const formatDate = (date) => {
   const msgDate = new Date(date);
   const diffDays = Math.floor((now - msgDate) / (1000 * 60 * 60 * 24));
   
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
   if (diffDays === 0) return 'Today';
   if (diffDays === 1) return 'Yesterday';
-  return msgDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (diffDays < 7) return days[msgDate.getDay()];
+  return `${months[msgDate.getMonth()]} ${msgDate.getDate()}`;
 };
 
 // Get time-based greeting
@@ -29,137 +44,89 @@ const getTimeBasedGreeting = () => {
   return 'Good evening';
 };
 
-// Check if within business hours (9 AM - 6 PM)
-const isWithinBusinessHours = () => {
-  const hour = new Date().getHours();
-  const day = new Date().getDay();
-  return day >= 1 && day <= 5 && hour >= 9 && hour < 18;
+// Get last seen text
+const getLastSeen = (date) => {
+  if (!date) return 'online';
+  const now = new Date();
+  const seen = new Date(date);
+  const diffMs = now - seen;
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  
+  if (diffMins < 1) return 'online';
+  if (diffMins < 60) return `last seen ${diffMins} minutes ago`;
+  if (diffHours < 24) return `last seen ${diffHours} hours ago`;
+  return `last seen ${formatDate(seen)}`;
 };
 
-// Smart keyword-based responses
-const getSmartResponse = (message, formData) => {
-  const lowerMessage = message.toLowerCase();
-  
-  // Emergency/urgent keywords
-  if (lowerMessage.match(/emergency|urgent|pain|bleeding|broken|accident/)) {
-    return {
-      response: "I understand this is urgent. Our team prioritizes emergency cases. We'll contact you within 15 minutes. In the meantime, please visit our emergency page for immediate guidance.",
-      isUrgent: true
-    };
-  }
-  
-  // Price/cost related
-  if (lowerMessage.match(/price|cost|how much|expensive|cheap|budget/)) {
-    return {
-      response: `For ${formData.service || 'our services'}, pricing varies based on your specific needs. Our ${formData.budget ? `budget range of $${formData.budget} ` : ''}helps us recommend the best options. Would you like a detailed quote?`
-    };
-  }
-  
-  // Appointment/scheduling
-  if (lowerMessage.match(/appointment|book|schedule|when|available/)) {
-    return {
-      response: isWithinBusinessHours() 
-        ? "Great news! We have availability this week. Would you prefer a morning or afternoon appointment?"
-        : "Our office is currently closed. Would you like us to schedule an appointment for when we reopen?"
-    };
-  }
-  
-  // Insurance related
-  if (lowerMessage.match(/insurance|covered|insurance/)) {
-    return {
-      response: "We accept most major insurance plans. Our team can verify your coverage before your appointment. Would you like us to check your benefits?"
-    };
-  }
-  
-  // Location related
-  if (lowerMessage.match(/location|address|where|near/)) {
-    return {
-      response: "We're conveniently located in the heart of the city with easy parking access. Would you like directions to our office?"
-    };
-  }
-  
-  // Thank you responses
-  if (lowerMessage.match(/thank|thanks|appreciate/)) {
-    return {
-      response: "You're welcome! We're here to help. Is there anything else you'd like to know?"
-    };
-  }
-  
-  // Default qualified response
-  return {
-    response: `Thank you for your interest in ${formData.service || 'our services'}. Our team will personalized contact you shortly with a custom quote based on your needs.`
-  };
-};
+// Emoji reactions
+const REACTIONS = ['❤️', '😂', '🔥', '👍', '😮', '😢', '🎉', '😊'];
 
 const ChatWidget = () => {
   const [isOpen, setIsOpen] = useState(false);
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    service: '',
-    budget: '',
-    urgency: ''
-  });
   const [messages, setMessages] = useState([]);
+  const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [messageStatus, setMessageStatus] = useState({});
+  const [isOnline, setIsOnline] = useState(true);
   const [lastSeen, setLastSeen] = useState(new Date());
-  const [responseTime, setResponseTime] = useState(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(null);
+  const [showReply, setShowReply] = useState(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const recordingInterval = useRef(null);
 
-  // Initialize with time-based greeting
+  // Demo contacts for WhatsApp-style
+  const [contacts] = useState([
+    { id: 1, name: 'Sarah Johnson', avatar: 'SJ', status: 'online', lastMessage: 'Great! See you tomorrow 👋', time: new Date(Date.now() - 300000), unread: 2 },
+    { id: 2, name: 'Mike Chen', avatar: 'MC', status: 'lastseen', lastSeen: new Date(Date.now() - 3600000), lastMessage: 'The project is ready', time: new Date(Date.now() - 3600000), unread: 0 },
+    { id: 3, name: 'Emma Wilson', avatar: 'EW', status: 'online', lastMessage: 'Thanks for the update!', time: new Date(Date.now() - 7200000), unread: 0 },
+    { id: 4, name: 'David Brown', avatar: 'DB', status: 'lastseen', lastSeen: new Date(Date.now() - 86400000), lastMessage: 'Let me check and get back to you', time: new Date(Date.now() - 86400000), unread: 0 },
+  ]);
+
+  const [selectedContact, setSelectedContact] = useState(contacts[0]);
+
+  // Initialize with welcome message
   useEffect(() => {
-    const now = new Date();
-    const initialMessage = {
-      id: 1,
-      sender: 'system',
-      content: `${getTimeBasedGreeting()}! 👋 Welcome to RecoverFlow. How can we assist you today?`,
-      timestamp: now,
-      status: 'delivered'
-    };
-    setMessages([initialMessage]);
-    setLastSeen(now);
-  }, []);
+    if (isOpen) {
+      const now = new Date();
+      const welcomeMessage = {
+        id: 1,
+        sender: 'system',
+        content: `${getTimeBasedGreeting()}! 👋 Welcome to RecoverFlow. How can I help you today?`,
+        timestamp: now,
+        status: 'read'
+      };
+      setMessages([welcomeMessage]);
+      setLastSeen(now);
+    }
+  }, [isOpen]);
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // Focus input when step changes
+  // Simulate online status
   useEffect(() => {
-    if (isOpen && step < 6) {
-      setTimeout(() => inputRef.current?.focus(), 300);
-    }
-  }, [step, isOpen]);
+    const interval = setInterval(() => {
+      const hour = new Date().getHours();
+      setIsOnline(hour >= 8 && hour < 22);
+    }, 60000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
-    // Update last seen
-    setLastSeen(new Date());
-  };
-
-  // Simulate typing indicator with realistic delay
-  const simulateTyping = (callback, delay = 1000) => {
-    setIsTyping(true);
-    setTimeout(() => {
-      setIsTyping(false);
-      callback();
-    }, delay + Math.random() * 500); // Add some randomness
-  };
-
-  const addMessage = (sender, content, status = 'sent') => {
+  const addMessage = (sender, content, status = 'sent', replyTo = null) => {
     const newMessage = {
       id: messages.length + 1,
       sender,
       content,
       timestamp: new Date(),
-      status
+      status,
+      replyTo,
+      reactions: []
     };
     setMessages(prev => [...prev, newMessage]);
     
@@ -167,297 +134,190 @@ const ChatWidget = () => {
     if (sender === 'user') {
       setMessageStatus(prev => ({ ...prev, [newMessage.id]: 'sent' }));
       
-      // Simulate delivered status after a delay
+      // Simulate delivered
       setTimeout(() => {
         setMessageStatus(prev => ({ ...prev, [newMessage.id]: 'delivered' }));
       }, 500);
+      
+      // Simulate read
+      setTimeout(() => {
+        setMessageStatus(prev => ({ ...prev, [newMessage.id]: 'read' }));
+      }, 1500);
     }
     
     return newMessage;
   };
 
-  const handleNextStep = async () => {
-    // Validate current step
-    if (step === 1 && !formData.name.trim()) {
-      addMessage('system', 'Please enter your name to get started.');
-      return;
-    }
-    
-    if (step === 2 && !formData.phone.trim()) {
-      addMessage('system', 'Please enter your phone number so we can contact you.');
-      return;
-    }
-    
-    if (step === 3 && !formData.service) {
-      addMessage('system', 'Please select the service you\'re interested in.');
-      return;
-    }
-    
-    if (step === 4 && !formData.budget) {
-      addMessage('system', 'Please select your budget range.');
-      return;
-    }
-    
-    if (step === 5 && !formData.urgency) {
-      addMessage('system', 'Please let us know how urgent your request is.');
-      return;
-    }
-    
-    // Add user confirmation
-    const userConfirmation = getUserConfirmation();
-    addMessage('user', userConfirmation);
-    
-    if (step === 5) {
-      // Show estimated response time
-      const estimatedTime = isWithinBusinessHours() ? '15-30 minutes' : 'first thing tomorrow morning';
-      setResponseTime(estimatedTime);
-      
-      // Show typing indicator while processing
-      simulateTyping(async () => {
-        try {
-          const response = await axios.post('/api/website-chat', {
-            businessId: '1',
-            ...formData
-          });
-          
-          // Get smart response
-          const smartResponse = getSmartResponse('', formData);
-          
-          addMessage('system', smartResponse.response);
-          setStep(6);
-        } catch (error) {
-          console.error('Error:', error);
-          addMessage('system', 'Thank you for your information! Our team will contact you shortly.');
-          setStep(6);
-        }
-      }, 1500);
-    } else {
-      // Show typing indicator between steps
-      simulateTyping(() => {
-        showStepQuestion(step + 1);
-        setStep(step + 1);
-      }, 800);
-    }
+  // Simulate typing indicator
+  const simulateTyping = (callback, delay = 1000) => {
+    setIsTyping(true);
+    setTimeout(() => {
+      setIsTyping(false);
+      callback();
+    }, delay + Math.random() * 1000);
   };
 
-  const getUserConfirmation = () => {
-    switch(step) {
-      case 1:
-        return `My name is ${formData.name}`;
-      case 2:
-        return `My phone number is ${formData.phone}`;
-      case 3:
-        return `I'm interested in ${formData.service.replace(/_/g, ' ')}`;
-      case 4:
-        return `My budget is ${formData.budget === '500' ? 'Under $500' : 
-          formData.budget === '1000' ? '$500 - $1,000' : 
-          formData.budget === '2000' ? '$1,000 - $2,000' : 
-          formData.budget === '3000' ? '$2,000 - $3,000' : '$3,000+'}`;
-      case 5:
-        return `My request is ${formData.urgency}`;
-      default:
-        return '';
-    }
-  };
-
-  const showStepQuestion = (stepNum) => {
-    let question;
-    switch(stepNum) {
-      case 2:
-        question = "Great! What's the best phone number to reach you at?";
-        break;
-      case 3:
-        question = 'What service are you interested in?';
-        break;
-      case 4:
-        question = 'What is your budget range for this service?';
-        break;
-      case 5:
-        question = 'How urgent is your request?';
-        break;
-      default:
-        question = '';
-    }
+  const handleSendMessage = () => {
+    if (!inputText.trim()) return;
     
-    if (question) {
-      addMessage('system', question);
-    }
+    // Add user message
+    addMessage('user', inputText, 'sent', showReply);
+    setInputText('');
+    
+    if (showReply) setShowReply(null);
+    
+    // Simulate typing and response
+    simulateTyping(() => {
+      const responses = [
+        "Thanks for your message! I'll get back to you shortly.",
+        "Got it! Let me check that for you.",
+        "Perfect! I'll assist you with that right away.",
+        "Thanks for reaching out! How can I help you further?",
+        "I understand. Let me look into this for you."
+      ];
+      const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+      addMessage('system', randomResponse, 'read');
+    }, 1500);
   };
 
   const handleKeyPress = (e) => {
-    if (e.key === 'Enter') {
-      handleNextStep();
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSendMessage();
     }
   };
 
-  const renderStepContent = () => {
-    switch(step) {
-      case 1:
-        return (
-          <div className="step-content">
-            <input
-              ref={inputRef}
-              type="text"
-              name="name"
-              placeholder="Enter your name"
-              value={formData.name}
-              onChange={handleInputChange}
-              onKeyPress={handleKeyPress}
-              className="form-input"
-              autoComplete="name"
-            />
-          </div>
-        );
-      
-      case 2:
-        return (
-          <div className="step-content">
-            <input
-              ref={inputRef}
-              type="tel"
-              name="phone"
-              placeholder="Your phone number"
-              value={formData.phone}
-              onChange={handleInputChange}
-              onKeyPress={handleKeyPress}
-              className="form-input"
-              autoComplete="tel"
-            />
-          </div>
-        );
-      
-      case 3:
-        return (
-          <div className="step-content">
-            <select
-              ref={inputRef}
-              name="service"
-              value={formData.service}
-              onChange={handleInputChange}
-              className="form-input"
-            >
-              <option value="">Select a service</option>
-              <option value="dental_implants">Dental Implants</option>
-              <option value="teeth_whitening">Teeth Whitening</option>
-              <option value="cosmetic_dentistry">Cosmetic Dentistry</option>
-              <option value="general_checkup">General Checkup</option>
-              <option value="emergency">Emergency Care</option>
-              <option value="consultation">Free Consultation</option>
-            </select>
-          </div>
-        );
-      
-      case 4:
-        return (
-          <div className="step-content">
-            <select
-              ref={inputRef}
-              name="budget"
-              value={formData.budget}
-              onChange={handleInputChange}
-              className="form-input"
-            >
-              <option value="">Select budget range</option>
-              <option value="500">Under $500</option>
-              <option value="1000">$500 - $1,000</option>
-              <option value="2000">$1,000 - $2,000</option>
-              <option value="3000">$2,000 - $3,000</option>
-              <option value="5000">$3,000+</option>
-            </select>
-          </div>
-        );
-      
-      case 5:
-        return (
-          <div className="step-content">
-            <select
-              ref={inputRef}
-              name="urgency"
-              value={formData.urgency}
-              onChange={handleInputChange}
-              className="form-input"
-            >
-              <option value="">Select urgency level</option>
-              <option value="urgent">🔴 Urgent - Need immediate help</option>
-              <option value="normal">🟡 Normal - Within this week</option>
-              <option value="flexible">🟢 Flexible - Anytime works</option>
-            </select>
-          </div>
-        );
-      
-      case 6:
-        return (
-          <div className="step-content completion-content">
-            <div className="success-icon">✓</div>
-            <h4>Thank You!</h4>
-            <p>We've received your information.</p>
-            {responseTime && (
-              <div className="response-time">
-                <span className="label">Estimated response:</span>
-                <span className="time">{responseTime}</span>
-              </div>
-            )}
-            <p className="business-hours">
-              {isWithinBusinessHours() 
-                ? "We're currently open and will contact you soon!"
-                : "We'll reach out first thing when we open!"}
-            </p>
-          </div>
-        );
-      
-      default:
-        return null;
+  const handleReaction = (messageId, emoji) => {
+    setMessages(prev => prev.map(msg => {
+      if (msg.id === messageId) {
+        const hasReaction = msg.reactions.includes(emoji);
+        return {
+          ...msg,
+          reactions: hasReaction 
+            ? msg.reactions.filter(r => r !== emoji)
+            : [...msg.reactions, emoji]
+        };
+      }
+      return msg;
+    }));
+    setShowEmojiPicker(null);
+  };
+
+  const handleReply = (message) => {
+    setShowReply(message);
+    inputRef.current?.focus();
+  };
+
+  const startRecording = () => {
+    setIsRecording(true);
+    setRecordingTime(0);
+    recordingInterval.current = setInterval(() => {
+      setRecordingTime(prev => prev + 1);
+    }, 1000);
+  };
+
+  const stopRecording = () => {
+    clearInterval(recordingInterval.current);
+    setIsRecording(false);
+    if (recordingTime > 1) {
+      addMessage('user', '🎤 Voice message', 'sent', showReply);
     }
+    setRecordingTime(0);
+    if (showReply) setShowReply(null);
+  };
+
+  const formatRecordingTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const renderStatusIcon = (status) => {
+    if (status === 'sent') return <span className="status-icon sent">✓</span>;
+    if (status === 'delivered') return <span className="status-icon delivered">✓✓</span>;
+    if (status === 'read') return <span className="status-icon read">✓✓</span>;
+    return null;
+  };
+
+  const renderMessageStatus = (message) => {
+    if (message.sender !== 'user') return null;
+    
+    const status = messageStatus[message.id] || message.status;
+    
+    return (
+      <span className={`message-status ${status}`}>
+        {status === 'sent' && '✓'}
+        {status === 'delivered' && '✓✓'}
+        {status === 'read' && <span className="blue-ticks">✓✓</span>}
+      </span>
+    );
   };
 
   return (
-    <div className="chat-widget">
+    <div className="chat-widget whatsapp-widget">
+      {/* Floating Button */}
       <div 
-        className={`chat-button ${isOpen ? 'open' : ''}`}
+        className={`chat-button whatsapp-btn ${isOpen ? 'open' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
       >
         {isOpen ? (
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18"></line>
-            <line x1="6" y1="6" x2="18" y2="18"></line>
-          </svg>
+            <line x1="6" y1="6" x2="18" y</line>
+          2="18"></svg>
         ) : (
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
           </svg>
         )}
       </div>
       
       {isOpen && (
-        <div className="chat-window">
-          <div className="chat-header">
+        <div className="chat-window whatsapp-window">
+          {/* WhatsApp Header */}
+          <div className="chat-header whatsapp-header">
             <div className="header-info">
-              <div className="avatar">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-                  <circle cx="12" cy="7" r="4"></circle>
-                </svg>
+              <div className="avatar whatsapp-avatar">
+                {selectedContact.avatar}
               </div>
               <div className="header-text">
-                <h3>RecoverFlow</h3>
+                <h3>RecoverFlow Chat - {selectedContact.name}</h3>
                 <span className="status-indicator">
-                  <span className="dot"></span>
-                  {isWithinBusinessHours() ? 'Online' : 'Away'}
+                  {isOnline ? (
+                    <span className="online-status">online</span>
+                  ) : (
+                    <span className="last-seen">{getLastSeen(selectedContact.lastSeen)}</span>
+                  )}
                 </span>
               </div>
             </div>
-            <button 
-              className="close-button"
-              onClick={() => setIsOpen(false)}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="18" y1="6" x2="6" y2="18"></line>
-                <line x1="6" y1="6" x2="18" y2="18"></line>
-              </svg>
-            </button>
+            <div className="header-actions">
+              <button className="header-action-btn" title="Voice call">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+              </button>
+              <button className="header-action-btn" title="Video call">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="23 7 16 12 23 17 23 7"/>
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+                </svg>
+              </button>
+              <button className="header-action-btn" title="More options">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="1"/>
+                  <circle cx="19" cy="12" r="1"/>
+                  <circle cx="5" cy="12" r="1"/>
+                </svg>
+              </button>
+            </div>
           </div>
           
-          <div className="chat-messages">
+          {/* Chat Messages */}
+          <div className="chat-messages whatsapp-messages">
+            {/* Background pattern */}
+            <div className="whatsapp-bg-pattern"></div>
+            
             {messages.map((message, index) => (
               <div key={message.id} className={`message-wrapper ${message.sender}`}>
                 {message.sender === 'system' && index > 0 && (
@@ -465,23 +325,92 @@ const ChatWidget = () => {
                     <span>{formatDate(message.timestamp)}</span>
                   </div>
                 )}
-                <div className={`message ${message.sender}`}>
+                
+                <div className={`message whatsapp-message ${message.sender}`}>
+                  {message.replyTo && (
+                    <div className="reply-preview">
+                      <span className="reply-name">{message.replyTo.sender === 'user' ? 'You' : selectedContact.name}</span>
+                      <span className="reply-text">{message.replyTo.content.substring(0, 50)}...</span>
+                    </div>
+                  )}
                   <div className="message-content">{message.content}</div>
+                  
+                  {/* Message reactions */}
+                  {message.reactions.length > 0 && (
+                    <div className="message-reactions">
+                      {message.reactions.map((emoji, idx) => (
+                        <span key={idx} className="reaction">{emoji}</span>
+                      ))}
+                    </div>
+                  )}
+                  
                   <div className="message-meta">
                     <span className="time">{formatTime(message.timestamp)}</span>
-                    {message.sender === 'user' && messageStatus[message.id] && (
-                      <span className="status">
-                        {messageStatus[message.id] === 'sent' ? '✓' : '✓✓'}
-                      </span>
-                    )}
+                    {renderMessageStatus(message)}
                   </div>
+                  
+                  {/* Message actions */}
+                  <div className="message-actions">
+                    <button 
+                      className="msg-action-btn"
+                      onClick={() => setShowEmojiPicker(showEmojiPicker === message.id ? null : message.id)}
+                      title="React"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                        <line x1="9" y1="9" x2="9.01" y2="9"/>
+                        <line x1="15" y1="9" x2="15.01" y2="9"/>
+                      </svg>
+                    </button>
+                    <button 
+                      className="msg-action-btn"
+                      onClick={() => handleReply(message)}
+                      title="Reply"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="9 17 4 12 9 7"/>
+                        <path d="M20 18v-2a4 4 0 0 0-4-4H4"/>
+                      </svg>
+                    </button>
+                    <button className="msg-action-btn" title="Forward">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="17 1 21 5 17 9"/>
+                        <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+                        <polyline points="7 23 3 19 7 15"/>
+                        <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+                      </svg>
+                    </button>
+                    <button className="msg-action-btn" title="More">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="1"/>
+                        <circle cx="19" cy="12" r="1"/>
+                        <circle cx="5" cy="12" r="1"/>
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  {/* Emoji picker */}
+                  {showEmojiPicker === message.id && (
+                    <div className="emoji-picker">
+                      {REACTIONS.map((emoji, idx) => (
+                        <button 
+                          key={idx} 
+                          className="emoji-btn"
+                          onClick={() => handleReaction(message.id, emoji)}
+                        >
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
             
             {isTyping && (
               <div className="message-wrapper system">
-                <div className="message system typing">
+                <div className="message system typing whatsapp-typing">
                   <div className="typing-indicator">
                     <span></span>
                     <span></span>
@@ -494,23 +423,95 @@ const ChatWidget = () => {
             <div ref={messagesEndRef} />
           </div>
           
-          {step < 6 && (
-            <div className="chat-input">
-              {renderStepContent()}
-              <button 
-                onClick={handleNextStep} 
-                className="btn btn-primary"
-                disabled={isTyping}
-              >
-                {step === 5 ? 'Submit' : (
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <line x1="22" y1="2" x2="11" y2="13"></line>
-                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-                  </svg>
-                )}
+          {/* Reply preview */}
+          {showReply && (
+            <div className="reply-bar">
+              <div className="reply-content">
+                <span className="reply-label">Replying to {showReply.sender === 'user' ? 'yourself' : selectedContact.name}</span>
+                <span className="reply-text">{showReply.content}</span>
+              </div>
+              <button className="close-reply" onClick={() => setShowReply(null)}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
               </button>
             </div>
           )}
+          
+          {/* Chat Input */}
+          <div className="chat-input whatsapp-input">
+            <button 
+              className="input-action-btn"
+              onClick={() => setShowEmojiPicker(null)}
+              title="Emoji"
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                <line x1="9" y1="9" x2="9.01" y2="9"/>
+                <line x1="15" y1="9" x2="15.01" y2="9"/>
+              </svg>
+            </button>
+            
+            <button className="input-action-btn" title="Attach file">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+              </svg>
+            </button>
+            
+            {isRecording ? (
+              <div className="recording-area">
+                <span className="recording-indicator">
+                  <span className="rec-dot"></span>
+                  Recording
+                </span>
+                <span className="recording-time">{formatRecordingTime(recordingTime)}</span>
+                <button className="send-voice-btn" onClick={stopRecording}>
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 14.5v-9l6 4.5-6 4.5z"/>
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <>
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder="Type a message"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  onKeyPress={handleKeyPress}
+                  className="whatsapp-input-field"
+                />
+                
+                <button 
+                  className="input-action-btn mic-btn"
+                  onMouseDown={startRecording}
+                  onMouseUp={stopRecording}
+                  onMouseLeave={() => isRecording && stopRecording()}
+                  title="Hold to record"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    <line x1="12" y1="19" x2="12" y2="23"/>
+                    <line x1="8" y1="23" x2="16" y2="23"/>
+                  </svg>
+                </button>
+              </>
+            )}
+            
+            <button 
+              className="send-btn whatsapp-send"
+              onClick={handleSendMessage}
+              disabled={!inputText.trim()}
+            >
+              <svg viewBox="0 0 24 24" fill="currentColor">
+                <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+              </svg>
+            </button>
+          </div>
         </div>
       )}
     </div>
