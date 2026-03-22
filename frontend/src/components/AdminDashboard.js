@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
+import Notifications from './Notifications';
+import SubscriptionPlans from './SubscriptionPlans';
 
 // Utility function to format time
 const formatTime = (date) => {
@@ -66,15 +68,30 @@ const getChannelIcon = (channel) => {
 };
 
 const AdminDashboard = () => {
-  const [businessId, setBusinessId] = useState('1');
+  const businessId = '1';
   const [conversations, setConversations] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedConversation, setSelectedConversation] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [selectedCustomerPurchases, setSelectedCustomerPurchases] = useState([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [isOnline, setIsOnline] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [currency, setCurrency] = useState('ZAR');
+  const [exchangeRates, setExchangeRates] = useState({});
   const sidebarRef = useRef(null);
+
+  const currencies = [
+    { code: 'ZAR', name: 'South African Rand', symbol: 'R' },
+    { code: 'USD', name: 'US Dollar', symbol: '$' },
+    { code: 'EUR', name: 'Euro', symbol: '€' },
+    { code: 'GBP', name: 'British Pound', symbol: '£' },
+    { code: 'AUD', name: 'Australian Dollar', symbol: 'A$' },
+    { code: 'CAD', name: 'Canadian Dollar', symbol: 'C$' }
+  ];
 
   // Update current time every minute
   useEffect(() => {
@@ -91,23 +108,77 @@ const AdminDashboard = () => {
 
   useEffect(() => {
     fetchData();
+    fetchExchangeRates();
   }, [businessId]);
+
+  const fetchExchangeRates = async () => {
+    try {
+      const response = await axios.get('/api/exchange-rates');
+      if (response.data.success) {
+        setExchangeRates(response.data.rates);
+      }
+    } catch (error) {
+      console.error('Error fetching exchange rates:', error);
+      // Fallback exchange rates if API fails
+      setExchangeRates({
+        ZAR: 18.00,
+        USD: 1.00,
+        EUR: 0.92,
+        GBP: 0.79,
+        AUD: 1.52,
+        CAD: 1.35
+      });
+    }
+  };
+
+  const convertCurrency = (amount, fromCurrency, toCurrency) => {
+    if (fromCurrency === toCurrency) {
+      return amount;
+    }
+    
+    // Base currency is USD (as per Stripe)
+    const usdAmount = fromCurrency === 'USD' ? amount : amount / exchangeRates[fromCurrency];
+    return toCurrency === 'USD' ? usdAmount : usdAmount * exchangeRates[toCurrency];
+  };
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [conversationsRes, analyticsRes] = await Promise.all([
+      const [conversationsRes, analyticsRes, productsRes, customersRes] = await Promise.all([
         axios.get(`/api/business/${businessId}/conversations`),
-        axios.get(`/api/business/${businessId}/analytics`)
+        axios.get(`/api/business/${businessId}/analytics`),
+        axios.get(`/api/products`),
+        axios.get(`/api/customers`)
       ]);
       
       setConversations(conversationsRes.data);
       setAnalytics(analyticsRes.data);
+      setProducts(productsRes.data);
+      setCustomers(customersRes.data.customers);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchCustomerPurchases = async (customerId) => {
+    try {
+      const response = await axios.get(`/api/customers/${customerId}/purchases`);
+      setSelectedCustomerPurchases(response.data.purchases);
+    } catch (error) {
+      console.error('Error fetching customer purchases:', error);
+    }
+  };
+
+  const handleCustomerClick = (customer) => {
+    setSelectedCustomer(customer);
+    fetchCustomerPurchases(customer.id);
+  };
+
+  const closeCustomerDetails = () => {
+    setSelectedCustomer(null);
+    setSelectedCustomerPurchases([]);
   };
 
   const getGreeting = () => {
@@ -212,6 +283,31 @@ const AdminDashboard = () => {
             <span>Leads</span>
           </a>
           <a 
+            href="#crm" 
+            className={`nav-item ${activeTab === 'crm' ? 'active' : ''}`}
+            onClick={() => setActiveTab('crm')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+              <circle cx="12" cy="7" r="4"></circle>
+            </svg>
+            <span>CRM</span>
+            <span className="badge">{customers.length}</span>
+          </a>
+          <a 
+            href="#products" 
+            className={`nav-item ${activeTab === 'products' ? 'active' : ''}`}
+            onClick={() => setActiveTab('products')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            <span>Products & Services</span>
+            <span className="badge">{products?.length || 0}</span>
+          </a>
+          <a 
             href="#analytics" 
             className={`nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
             onClick={() => setActiveTab('analytics')}
@@ -222,6 +318,16 @@ const AdminDashboard = () => {
               <line x1="6" y1="20" x2="6" y2="14"></line>
             </svg>
             <span>Analytics</span>
+          </a>
+          <a 
+            href="#subscriptions" 
+            className={`nav-item ${activeTab === 'subscriptions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('subscriptions')}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+            </svg>
+            <span>Subscriptions</span>
           </a>
           <a href="#settings" className="nav-item">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -247,6 +353,19 @@ const AdminDashboard = () => {
             <p className="header-subtitle">{formatDate(currentTime)}</p>
           </div>
           <div className="header-right">
+            <div className="currency-selector">
+              <select
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value)}
+                className="currency-dropdown"
+              >
+                {currencies.map((curr) => (
+                  <option key={curr.code} value={curr.code}>
+                    {curr.code} - {curr.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <div className="search-box">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="11" cy="11" r="8"></circle>
@@ -254,115 +373,154 @@ const AdminDashboard = () => {
               </svg>
               <input type="text" placeholder="Search conversations..." />
             </div>
-            <button className="icon-button notification-btn">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-              </svg>
-              <span className="notification-badge">3</span>
-            </button>
+            <Notifications />
           </div>
         </header>
         
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-icon leads">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="9" cy="7" r="4"></circle>
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-              </svg>
+        {activeTab === 'dashboard' && (
+          <>
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon leads">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                  </svg>
+                </div>
+                <div className="stat-info">
+                  <span className="stat-label">Total Leads</span>
+                  <span className="stat-value">{analytics?.totalLeads || 0}</span>
+                  <span className="stat-change positive">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                      <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    +12% this week
+                  </span>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon recovered">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <div className="stat-info">
+                  <span className="stat-label">Recovered</span>
+                  <span className="stat-value">{analytics?.recoveredLeads || 0}</span>
+                  <span className="stat-change positive">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                      <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    +8% this week
+                  </span>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon revenue">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="20" x2="12" y2="10"></line>
+                    <line x1="18" y1="20" x2="18" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="16"></line>
+                  </svg>
+                </div>
+                <div className="stat-info">
+                  <span className="stat-label">Total Revenue</span>
+                  <span className="stat-value">
+                    {currencies.find(c => c.code === currency).symbol}
+                    {convertCurrency(analytics?.totalRevenue || 0, 'USD', currency).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="stat-change positive">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                      <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    +15% this week
+                  </span>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon conversion">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <div className="stat-info">
+                  <span className="stat-label">Conversion Rate</span>
+                  <span className="stat-value">{analytics?.conversionRate || 0}%</span>
+                  <span className="stat-change positive">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                      <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    +5% this week
+                  </span>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon rate">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="12" y1="20" x2="12" y2="10"></line>
+                    <line x1="18" y1="20" x2="18" y2="4"></line>
+                    <line x1="6" y1="20" x2="6" y2="16"></line>
+                  </svg>
+                </div>
+                <div className="stat-info">
+                  <span className="stat-label">Recovery Rate</span>
+                  <span className="stat-value">{metrics.rate}%</span>
+                  <span className={`stat-change ${metrics.trend === 'up' ? 'positive' : metrics.trend === 'down' ? 'negative' : ''}`}>
+                    {metrics.trend === 'up' ? '↑' : metrics.trend === 'down' ? '↓' : '→'} vs last month
+                  </span>
+                </div>
+              </div>
+              
+              <div className="stat-card">
+                <div className="stat-icon response">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <polyline points="12 6 12 12 16 14"></polyline>
+                  </svg>
+                </div>
+                <div className="stat-info">
+                  <span className="stat-label">Avg Response</span>
+                  <span className="stat-value">{metrics.avgResponse}</span>
+                  <span className="stat-change positive">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
+                      <polyline points="17 6 23 6 23 12"></polyline>
+                    </svg>
+                    Faster than avg
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="stat-info">
-              <span className="stat-label">Total Leads</span>
-              <span className="stat-value">{analytics?.totalLeads || 0}</span>
-              <span className="stat-change positive">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                  <polyline points="17 6 23 6 23 12"></polyline>
-                </svg>
-                +12% this week
-              </span>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon recovered">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="20 6 9 17 4 12"></polyline>
-              </svg>
-            </div>
-            <div className="stat-info">
-              <span className="stat-label">Recovered</span>
-              <span className="stat-value">{analytics?.recoveredLeads || 0}</span>
-              <span className="stat-change positive">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                  <polyline points="17 6 23 6 23 12"></polyline>
-                </svg>
-                +8% this week
-              </span>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon rate">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="12" y1="20" x2="12" y2="10"></line>
-                <line x1="18" y1="20" x2="18" y2="4"></line>
-                <line x1="6" y1="20" x2="6" y2="16"></line>
-              </svg>
-            </div>
-            <div className="stat-info">
-              <span className="stat-label">Recovery Rate</span>
-              <span className="stat-value">{metrics.rate}%</span>
-              <span className={`stat-change ${metrics.trend === 'up' ? 'positive' : metrics.trend === 'down' ? 'negative' : ''}`}>
-                {metrics.trend === 'up' ? '↑' : metrics.trend === 'down' ? '↓' : '→'} vs last month
-              </span>
-            </div>
-          </div>
-          
-          <div className="stat-card">
-            <div className="stat-icon response">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10"></circle>
-                <polyline points="12 6 12 12 16 14"></polyline>
-              </svg>
-            </div>
-            <div className="stat-info">
-              <span className="stat-label">Avg Response</span>
-              <span className="stat-value">{metrics.avgResponse}</span>
-              <span className="stat-change positive">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-                  <polyline points="17 6 23 6 23 12"></polyline>
-                </svg>
-                Faster than avg
-              </span>
-            </div>
-          </div>
-        </div>
-        
-        <section className="conversations-section">
-          <div className="section-header">
-            <h2>Recent Conversations</h2>
-            <div className="section-actions">
-              <select className="filter-select">
-                <option>All Channels</option>
-                <option>SMS</option>
-                <option>Website</option>
-                <option>Phone</option>
-              </select>
-              <select className="filter-select">
-                <option>All Status</option>
-                <option>New</option>
-                <option>In Progress</option>
-                <option>Qualified</option>
-                <option>Converted</option>
-              </select>
-            </div>
-          </div>
+            
+            <section className="conversations-section">
+              <div className="section-header">
+                <h2>Recent Conversations</h2>
+                <div className="section-actions">
+                  <select className="filter-select">
+                    <option>All Channels</option>
+                    <option>SMS</option>
+                    <option>Website</option>
+                    <option>Phone</option>
+                  </select>
+                  <select className="filter-select">
+                    <option>All Status</option>
+                    <option>New</option>
+                    <option>In Progress</option>
+                    <option>Qualified</option>
+                    <option>Converted</option>
+                  </select>
+                </div>
+              </div>
           
           <div className="conversations-table">
             <div className="table-header">
@@ -456,8 +614,332 @@ const AdminDashboard = () => {
             New Campaign
           </button>
         </div>
+          </>
+        )}
+
+        {activeTab === 'products' && (
+          <section className="products-section">
+            <div className="section-header">
+              <h2>Products & Services</h2>
+              <button className="btn btn-primary">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14"></path>
+                </svg>
+                Add Product
+              </button>
+            </div>
+            
+            <div className="products-grid">
+              {products.map((product) => (
+                <div key={product.id} className="product-card">
+                  {product.image_url && (
+                    <div className="product-image">
+                      <img src={product.image_url} alt={product.name} />
+                    </div>
+                  )}
+                  <div className="product-info">
+                    <div className="product-header">
+                      <h3>{product.name}</h3>
+                      {product.featured && <span className="featured-badge">Featured</span>}
+                    </div>
+                    <p className="product-description">{product.description}</p>
+                    <div className="product-footer">
+                      <span className="product-price">${product.price.toFixed(2)}</span>
+                      {product.category && <span className="product-category">{product.category}</span>}
+                      <div className="product-actions">
+                        <button className="btn btn-sm btn-primary">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                            <polyline points="14 11 18 11 18 7"></polyline>
+                            <polyline points="16 11 16 17 8 17 8 11"></polyline>
+                          </svg>
+                          Edit
+                        </button>
+                        <button className="btn btn-sm btn-danger">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                          </svg>
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {products.length === 0 && (
+              <div className="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                  <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                  <polyline points="21 15 16 10 5 21"></polyline>
+                </svg>
+                <p>No products added yet</p>
+                <span>Add your first product to start selling</span>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'crm' && (
+          <section className="crm-section">
+            <div className="section-header">
+              <h2>Customer Records</h2>
+              <div className="search-bar">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="11" cy="11" r="8"></circle>
+                  <path d="m21 21-4.35-4.35"></path>
+                </svg>
+                <input type="text" placeholder="Search customers..." />
+              </div>
+            </div>
+            
+            <div className="customers-grid">
+              {customers.map((customer) => (
+                <div 
+                  key={customer.id} 
+                  className="customer-card"
+                  onClick={() => handleCustomerClick(customer)}
+                >
+                  <div className="customer-avatar">
+                    {customer.name?.charAt(0) || '?'}
+                  </div>
+                  <div className="customer-info">
+                    <div className="customer-header">
+                      <h3>{customer.name || 'Unknown'}</h3>
+                      {customer.tags && customer.tags.length > 0 && (
+                        <div className="customer-tags">
+                          {customer.tags.slice(0, 2).map((tag, index) => (
+                            <span key={index} className="tag">{tag}</span>
+                          ))}
+                          {customer.tags.length > 2 && (
+                            <span className="tag">+{customer.tags.length - 2}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <p className="customer-phone">{customer.phone_number}</p>
+                    <div className="customer-meta">
+                      <span className="meta-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="3"></circle>
+                          <path d="M12 1v6m0 6v6"></path>
+                          <path d="M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24"></path>
+                          <path d="M1 12h6m6 0h6"></path>
+                          <path d="M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
+                        </svg>
+                        {customer.total_purchases} purchases
+                      </span>
+                      <span className="meta-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path>
+                        </svg>
+                        ${customer.total_spent.toFixed(2)} total
+                      </span>
+                      <span className="meta-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        {customer.total_conversations} conversations
+                      </span>
+                      {customer.days_since_last_interaction !== null && (
+                        <span className="meta-item">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 16v-4M12 8h.01"></path>
+                          </svg>
+                          {customer.days_since_last_interaction === 0 ? 'Today' : 
+                           customer.days_since_last_interaction === 1 ? 'Yesterday' : 
+                           `${customer.days_since_last_interaction} days ago`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="customer-status">
+                    <span className={`status-badge ${getStatusClass(customer.status)}`}>
+                      {customer.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {customers.length === 0 && (
+              <div className="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="12" cy="7" r="4"></circle>
+                </svg>
+                <p>No customers yet</p>
+                <span>Customers will appear here as they interact with your business</span>
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'subscriptions' && (
+          <section className="subscriptions-section">
+            <SubscriptionPlans />
+          </section>
+        )}
       </main>
       
+      {/* Customer Detail Panel */}
+      {selectedCustomer && (
+        <div className="customer-panel">
+          <div className="panel-header">
+            <div className="panel-title">
+              <h3>{selectedCustomer.name || 'Unknown'}</h3>
+              <span className="panel-subtitle">{selectedCustomer.phone_number}</span>
+            </div>
+            <button className="close-panel" onClick={closeCustomerDetails}>
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </div>
+          
+          <div className="panel-content">
+            <div className="info-section">
+              <h4>Customer Information</h4>
+              <div className="info-grid">
+                <div className="info-item">
+                  <label>Email</label>
+                  <span>{selectedCustomer.email || 'N/A'}</span>
+                </div>
+                <div className="info-item">
+                  <label>Status</label>
+                  <span className={`status-badge ${getStatusClass(selectedCustomer.status)}`}>
+                    {selectedCustomer.status}
+                  </span>
+                </div>
+                <div className="info-item">
+                  <label>Source</label>
+                  <span>{selectedCustomer.source}</span>
+                </div>
+                <div className="info-item">
+                  <label>Created</label>
+                  <span>{formatDate(selectedCustomer.created_at)}</span>
+                </div>
+                <div className="info-item">
+                  <label>Last Purchase</label>
+                  <span>{selectedCustomer.last_purchase_date ? formatDate(selectedCustomer.last_purchase_date) : 'Never'}</span>
+                </div>
+                <div className="info-item">
+                  <label>Total Spent</label>
+                  <span>${selectedCustomer.total_spent.toFixed(2)}</span>
+                </div>
+              </div>
+            </div>
+
+            {selectedCustomer.notes && (
+              <div className="info-section">
+                <h4>Notes</h4>
+                <p className="notes">{selectedCustomer.notes}</p>
+              </div>
+            )}
+
+             {selectedCustomer.total_conversations > 0 && (
+               <div className="info-section">
+                 <h4>Conversation History</h4>
+                 <div className="conversations-summary">
+                   <div className="stat-card">
+                     <div className="stat-value">{selectedCustomer.total_conversations}</div>
+                     <div className="stat-label">Total Conversations</div>
+                   </div>
+                   <div className="stat-card">
+                     <div className="stat-value">
+                       {selectedCustomer.days_since_last_interaction === 0 ? 'Today' : 
+                        selectedCustomer.days_since_last_interaction === 1 ? 'Yesterday' : 
+                        `${selectedCustomer.days_since_last_interaction} days ago`}
+                     </div>
+                     <div className="stat-label">Last Interaction</div>
+                   </div>
+                 </div>
+               </div>
+             )}
+
+             {selectedCustomerPurchases.length > 0 && (
+               <div className="info-section">
+                 <h4>Purchase History</h4>
+                 <div className="purchases-list">
+                   {selectedCustomerPurchases.map((purchase) => (
+                     <div key={purchase.id} className="purchase-item">
+                       <div className="purchase-info">
+                         <div className="purchase-header">
+                           <h5>{purchase.description}</h5>
+                           <span className={`purchase-status ${purchase.status}`}>{purchase.status}</span>
+                         </div>
+                         <div className="purchase-meta">
+                           <span className="meta-item">
+                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                               <circle cx="12" cy="12" r="3"></circle>
+                               <path d="M12 1v6m0 6v6"></path>
+                               <path d="M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24"></path>
+                               <path d="M1 12h6m6 0h6"></path>
+                               <path d="M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
+                             </svg>
+                             {formatDate(purchase.created_at)}
+                           </span>
+                           <span className="meta-item">
+                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                               <circle cx="12" cy="12" r="10"></circle>
+                               <path d="M12 16v-4M12 8h.01"></path>
+                             </svg>
+                             ${purchase.amount.toFixed(2)}
+                           </span>
+                         </div>
+                       </div>
+                       <div className="purchase-actions">
+                         <button className="btn btn-sm btn-primary">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M12 15v2M12 11v6M12 1h2.5A1.5 1.5 0 0 1 16 2.5v1M18 6h-3M18 8h3M18 10h-3"></path>
+                          </svg>
+                          Receipt
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="info-section">
+              <h4>Tags</h4>
+              <div className="tags-container">
+                {selectedCustomer.tags && selectedCustomer.tags.length > 0 ? (
+                  selectedCustomer.tags.map((tag, index) => (
+                    <span key={index} className="tag">{tag}</span>
+                  ))
+                ) : (
+                  <p className="empty-tags">No tags assigned</p>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className="panel-footer">
+            <button className="btn btn-primary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+              </svg>
+              Message Customer
+            </button>
+            <button className="btn btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <circle cx="8.5" cy="8.5" r="1.5"></circle>
+                <polyline points="21 15 16 10 5 21"></polyline>
+              </svg>
+              View Products
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Conversation Detail Panel */}
       {selectedConversation && (
         <div className="conversation-panel">

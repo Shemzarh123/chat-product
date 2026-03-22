@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import PasswordStrengthMeter from './PasswordStrengthMeter';
 
 const RegisterPage = ({ isModal = false }) => {
   const [step, setStep] = useState(1);
@@ -14,9 +15,17 @@ const RegisterPage = ({ isModal = false }) => {
     industry: '',
     address: '',
     website: '',
-    description: ''
+    description: '',
+    logo: null,
+    termsAccepted: false
   });
-  const [error, setError] = useState('');
+  const [progress, setProgress] = useState(0);
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const { register } = useAuth();
+  const navigate = useNavigate();
+
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const { register } = useAuth();
