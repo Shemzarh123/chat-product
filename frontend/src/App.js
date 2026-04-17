@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ChatProvider } from './context/ChatContext';
+import { PnLProvider } from './context/PnLContext';
+import { Toaster } from 'react-hot-toast';
 
 import AdminDashboard from './components/AdminDashboard';
 import ChatWidget from './components/ChatWidget';
@@ -15,122 +17,99 @@ import WhatsAppRegister from './components/WhatsAppRegister';
 import BusinessProfile from './components/BusinessProfile';
 import TermsOfService from './components/TermsOfService';
 import PrivacyPolicy from './components/PrivacyPolicy';
+import StatusView from './components/StatusView';
+import Notifications from './components/Notifications';
+import SubscriptionPlans from './components/SubscriptionPlans';
+import BusinessLoginPage from './components/BusinessLoginPage';
+import BusinessRegisterPage from './components/BusinessRegisterPage';
+import PnLDashboard from './components/PnLDashboard';
+import MeetingList from './components/MeetingList';
+import MeetingScheduler from './components/MeetingScheduler';
+import VideoCall from './components/VideoCall';
 import './App.css';
 
 const AppContent = () => {
   const { user } = useAuth();
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [modalTab, setModalTab] = useState('login');
 
-  const openLoginModal = () => {
-    setModalTab('login');
-    setShowAuthModal(true);
-  };
-
-  const openRegisterModal = () => {
-    setModalTab('register');
-    setShowAuthModal(true);
-  };
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js')
+        .then(reg => console.log('SW registered:', reg))
+        .catch(err => console.log('SW registration failed'));
+    }
+  }, []);
 
   const closeModal = () => setShowAuthModal(false);
 
   return (
-    <div className="App">
-      <AuthModal 
-        isOpen={showAuthModal} 
-        onClose={closeModal}
-        initialTab={modalTab}
-      />
-      <Routes>
-        {/* WhatsApp-style Chat App */}
-        <Route 
-          path="/chat" 
-          element={
-            <ProtectedRoute>
-              <WhatsAppLayout />
-            </ProtectedRoute>
-          } 
-        />
+    <ChatProvider>
+      <PnLProvider>
+        <div className="App">
+          <AuthModal 
+            isOpen={showAuthModal} 
+            onClose={closeModal}
+            initialTab='login'
+          />
+          <Toaster />
+          <Routes>
+            {/* WhatsApp-style Chat App */}
+            <Route 
+              path="/chat" 
+              element={
+                <ProtectedRoute>
+                  <WhatsAppLayout />
+                </ProtectedRoute>
+              } 
+            />
 
-        {/* WhatsApp-style Login & Register */}
-        <Route path="/whatsapp-login" element={<WhatsAppLogin />} />
-        <Route path="/whatsapp-register" element={<WhatsAppRegister />} />
-        <Route path="/terms-of-service" element={<TermsOfService />} />
-        <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            {/* WhatsApp-style Login & Register */}
+            <Route path="/whatsapp-login" element={<WhatsAppLogin />} />
+            <Route path="/whatsapp-register" element={<WhatsAppRegister />} />
+            <Route path="/terms-of-service" element={<TermsOfService />} />
+            <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+            <Route path="/pnl" element={<ProtectedRoute><PnLDashboard /></ProtectedRoute>} />
+            <Route path="/status" element={<StatusView />} />
+<Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
+            <Route path="/subscription" element={<ProtectedRoute><SubscriptionPlans /></ProtectedRoute>} />
+            <Route path="/meetings" element={<ProtectedRoute><MeetingList /></ProtectedRoute>} />
+            <Route path="/schedule/:userId" element={<ProtectedRoute><MeetingScheduler /></ProtectedRoute>} />
+            <Route path="/call/:meetingId" element={<ProtectedRoute><VideoCall /></ProtectedRoute>} />
 
-        {/* Original RecoverFlow Routes */}
-        <Route path="/" element={
-            <div className="landing-page">
-              <div className="logo">
-                <span className="logo-icon">RF</span>
-                <span className="logo-text">RecoverFlow</span>
-              </div>
-              <div className="particles-container">
-                <div className="particle particle1"></div>
-                <div className="particle particle2"></div>
-                <div className="particle particle3"></div>
-                <div className="particle particle4"></div>
-              </div>
-              <div className="whatsapp-logo">
-                <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-              </svg>
-            </div>
-            <h1>RecoverFlow</h1>
-            <p>Revenue Recovery Chat for Service Businesses</p>
-            <div className="chat-demo-header">
-              <h2>💬 Live Chat Demo</h2>
-              <p>Try our WhatsApp-style chat widget</p>
-            </div>
-            <ChatWidget />
-            <div className="landing-actions">
-              <button onClick={openRegisterModal} className="btn-primary register-btn">🚀 Get Started - Register</button>
-              <button onClick={openLoginModal} className="btn-secondary login-btn">🔐 Login</button>
-              {user && (
-                <>
-                  <a href="/admin" className="btn-secondary admin-btn">⚙️ Admin Dashboard</a>
-                  <a href="/business-profile" className="btn-secondary profile-btn">🏪 Business Profile</a>
-                  <a href="/chat" className="btn-primary chat-btn">📱 WhatsApp Chat</a>
-                </>
-              )}
-            </div>
-          </div>
-        } />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route 
-          path="/admin" 
-          element={
-            <ProtectedRoute>
-              <AdminDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="/business-profile" 
-          element={
-            <ProtectedRoute>
-              <BusinessProfile />
-            </ProtectedRoute>
-          } 
-        />
-        <Route path="*" element={<Navigate to="/" />} />
-      </Routes>
-    </div>
+            {/* PnL in chat */}
+            <Route 
+              path="/chat/:chatId" 
+              element={
+                <ProtectedRoute>
+                  <WhatsAppLayout />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Original RecoverFlow Routes */}
+            <Route path="/" element={<Navigate to="/chat" replace />} />
+            <Route path="/login" element={user ? <Navigate to="/chat" /> : <LoginPage />} />
+<Route path="/register" element={user ? <Navigate to="/chat" /> : <RegisterPage />} />
+            <Route path="/business-login" element={user ? <Navigate to="/chat" /> : <BusinessLoginPage />} />
+<Route path="/business-register" element={user ? <Navigate to="/chat" /> : <BusinessRegisterPage />} />
+            <Route path="/business/:id" element={<ProtectedRoute><BusinessProfile /></ProtectedRoute>} />
+            <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+            <Route path="/widget" element={<ChatWidget />} />
+            <Route path="*" element={<Navigate to="/chat" replace />} />
+          </Routes>
+        </div>
+      </PnLProvider>
+    </ChatProvider>
   );
 };
 
-function App() {
-  return (
-    <AuthProvider>
-      <ChatProvider>
-        <AppContent />
-      </ChatProvider>
-    </AuthProvider>
-  );
-}
-
+const App = () => (
+  <AuthProvider>
+    <AppContent />
+  </AuthProvider>
+);
 
 export default App;
+
 
 

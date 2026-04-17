@@ -237,19 +237,6 @@
         color: white;
       }
 
-      .btn-primary:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-      }
-
-      .btn-primary:active {
-        transform: translateY(0);
-      }
-
-      /* Hide chat window initially */
-      .chat-window.hidden {
-        display: none;
-      }
 
       /* Responsive */
       @media (max-width: 420px) {
@@ -273,11 +260,15 @@
       </div>
 
       <div class="chat-window hidden" id="chatWindow">
-        <div class="chat-header">
-          <h3>RecoverFlow Support</h3>
-          <button class="close-button" onclick="toggleChat()">
-            ×
-          </button>
+        <div class="chat-header" role="banner">
+          <h3 id="chatTitle" aria-live="polite">RecoverFlow Support</h3>
+          <div>
+            <button id="darkToggle" class="theme-toggle" title="Toggle dark mode"
+              aria-label="Toggle dark mode">🌙</button>
+            <button class="close-button" onclick="toggleChat()" aria-label="Close chat">
+              ×
+            </button>
+          </div>
         </div>
 
         <div class="chat-messages" id="chatMessages">
@@ -292,207 +283,224 @@
       </div>
     </div>
 
-    <!-- Socket.io CDN for standalone -->
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script src="./script.js"></script>
+    <script>
+      // Standalone Chat State - Fully Fixed & Professional
+      window.state = {
+        isOpen: false,
+        step: 1,
+        formData: {
+          name: '',
+          phone: '',
+          service: '',
+          budget: '',
+          urgency: ''
+        },
+        messages: [],
+        isSubmitting: false,
+        isTyping: false
+      };
 
-    isOpen: false,
-    step: 1,
-    formData: {
-    name: '',
-    phone: '',
-    service: '',
-    budget: '',
-    urgency: ''
-    },
-    messages: [
-    { id: 1, sender: 'system', content: 'Hi! 👋 Thank you for visiting. How can we help you today?' }
-    ]
-    };
+      // DOM Elements (wait for load)
+      let chatButton, chatWindow, chatMessages, chatInput;
 
-    // DOM Elements
-    const chatButton = document.getElementById('chatButton');
-    const chatWindow = document.getElementById('chatWindow');
-    const chatMessages = document.getElementById('chatMessages');
-    const chatInput = document.getElementById('chatInput');
+      // Config from data-attributes
+      const config = {
+        title: document.body.dataset.chatTitle || 'RecoverFlow Support',
+        services: JSON.parse(document.body.dataset.services || '["Dental Implants","Teeth Whitening","Cosmetic Dentistry","General Checkup"]'),
+        primaryColor: document.body.dataset.primaryColor || '#667eea',
+        businessId: document.body.dataset.businessId || 'demo'
+      };
 
-    // Toggle chat window
-    function toggleChat() {
-    state.isOpen = !state.isOpen;
+      // Init when DOM ready
+      document.addEventListener('DOMContentLoaded', initChat);
 
-    if (state.isOpen) {
-    chatWindow.classList.remove('hidden');
-    chatButton.classList.add('open');
-    renderMessages();
-    renderStepContent();
-    } else {
-    chatWindow.classList.add('hidden');
-    chatButton.classList.remove('open');
-    }
-    }
+      function initChat() {
+        chatButton = document.getElementById('chatButton');
+        chatWindow = document.getElementById('chatWindow');
+        chatMessages = document.getElementById('chatMessages');
+        chatInput = document.getElementById('chatInput');
 
-    // Add message to state and render
-    function addMessage(sender, content) {
-    state.messages.push({
-    id: state.messages.length + 1,
-    sender: sender,
-    content: content
-    });
-    renderMessages();
-    }
+        // Welcome typed message
+        typeMessage('Hi! 👋 Thank you for visiting. How can we help you today?');
 
-    // Render all messages
-    function renderMessages() {
-    chatMessages.innerHTML = state.messages.map(message => `
+
+        function toggleChat() {
+          state.isOpen = !state.isOpen;
+
+          if (state.isOpen) {
+            chatWindow.classList.remove('hidden');
+            chatButton.classList.add('open');
+            renderMessages();
+            renderStepContent();
+          } else {
+            chatWindow.classList.add('hidden');
+            chatButton.classList.remove('open');
+          }
+        }
+
+        // Add message to state and render
+        function addMessage(sender, content) {
+          state.messages.push({
+            id: state.messages.length + 1,
+            sender: sender,
+            content: content
+          });
+          renderMessages();
+        }
+
+        // Render all messages
+        function renderMessages() {
+          chatMessages.innerHTML = state.messages.map(message => `
     <div class="message ${message.sender}">
       ${message.content}
     </div>
     `).join('');
 
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
+          // Scroll to bottom
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
 
-    // Handle input changes
-    function handleInputChange(field, value) {
-    state.formData[field] = value;
-    }
+        // Handle input changes
+        function handleInputChange(field, value) {
+          state.formData[field] = value;
+        }
 
-    // Show step question
-    function showStepQuestion(stepNum) {
-    let question;
-    switch(stepNum) {
-    case 2:
-    question = 'What is your phone number?';
-    break;
-    case 3:
-    question = 'What service are you interested in?';
-    break;
-    case 4:
-    question = 'What is your budget range?';
-    break;
-    case 5:
-    question = 'How urgent is your request?';
-    break;
-    default:
-    question = '';
-    }
+        // Show step question
+        function showStepQuestion(stepNum) {
+          let question;
+          switch (stepNum) {
+            case 2:
+              question = 'What is your phone number?';
+              break;
+            case 3:
+              question = 'What service are you interested in?';
+              break;
+            case 4:
+              question = 'What is your budget range?';
+              break;
+            case 5:
+              question = 'How urgent is your request?';
+              break;
+            default:
+              question = '';
+          }
 
-    if (question) {
-    setTimeout(() => {
-    addMessage('system', question);
-    }, 300);
-    }
-    }
+          if (question) {
+            setTimeout(() => {
+              addMessage('system', question);
+            }, 300);
+          }
+        }
 
-    // Handle next step
-    async function handleNextStep() {
-    // Validation
-    if (state.step === 1 && !state.formData.name) {
-    addMessage('system', 'Please enter your name.');
-    return;
-    }
+        // Handle next step
+        async function handleNextStep() {
+          // Validation
+          if (state.step === 1 && !state.formData.name) {
+            addMessage('system', 'Please enter your name.');
+            return;
+          }
 
-    if (state.step === 2 && !state.formData.phone) {
-    addMessage('system', 'Please enter your phone number.');
-    return;
-    }
+          if (state.step === 2 && !state.formData.phone) {
+            addMessage('system', 'Please enter your phone number.');
+            return;
+          }
 
-    if (state.step === 3 && !state.formData.service) {
-    addMessage('system', 'Please select the service you need.');
-    return;
-    }
+          if (state.step === 3 && !state.formData.service) {
+            addMessage('system', 'Please select the service you need.');
+            return;
+          }
 
-    if (state.step === 4 && !state.formData.budget) {
-    addMessage('system', 'Please select your budget range.');
-    return;
-    }
+          if (state.step === 4 && !state.formData.budget) {
+            addMessage('system', 'Please select your budget range.');
+            return;
+          }
 
-    if (state.step === 5 && !state.formData.urgency) {
-    addMessage('system', 'Please select your urgency.');
-    return;
-    }
+          if (state.step === 5 && !state.formData.urgency) {
+            addMessage('system', 'Please select your urgency.');
+            return;
+          }
 
-    // Final step - submit form
-    if (state.step === 5) {
-    try {
-    addMessage('user', `Submitting...`);
+          // Final step - submit form
+          if (state.step === 5) {
+            try {
+              addMessage('user', `Submitting...`);
 
-    const response = await fetch('/api/website-chat', {
-    method: 'POST',
-    headers: {
-    'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-    businessId: '1',
-    ...state.formData
-    })
-    });
+              const response = await fetch('/api/website-chat', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  businessId: '1',
+                  ...state.formData
+                })
+              });
 
-    const data = await response.json();
+              const data = await response.json();
 
-    // Remove the "Submitting..." message
-    state.messages = state.messages.filter(m => m.content !== 'Submitting...');
+              // Remove the "Submitting..." message
+              state.messages = state.messages.filter(m => m.content !== 'Submitting...');
 
-    if (data.response) {
-    addMessage('system', data.response);
-    }
+              if (data.response) {
+                addMessage('system', data.response);
+              }
 
-    state.step = 6;
-    renderMessages();
-    renderStepContent();
-    } catch (error) {
-    console.error('Error:', error);
-    // Remove the "Submitting..." message
-    state.messages = state.messages.filter(m => m.content !== 'Submitting...');
-    addMessage('system', 'Sorry, we encountered an error. Please try again later.');
-    }
-    } else {
-    state.step++;
-    showStepQuestion(state.step);
-    renderStepContent();
-    }
-    }
+              state.step = 6;
+              renderMessages();
+              renderStepContent();
+            } catch (error) {
+              console.error('Error:', error);
+              // Remove the "Submitting..." message
+              state.messages = state.messages.filter(m => m.content !== 'Submitting...');
+              addMessage('system', 'Sorry, we encountered an error. Please try again later.');
+            }
+          } else {
+            state.step++;
+            showStepQuestion(state.step);
+            renderStepContent();
+          }
+        }
 
-    // Render step content
-    function renderStepContent() {
-    const messagesContainer = chatMessages;
+        // Render step content
+        function renderStepContent() {
+          const messagesContainer = chatMessages;
 
-    // Remove existing step content
-    const existingStepContent = messagesContainer.querySelector('.step-content');
-    if (existingStepContent) {
-    existingStepContent.remove();
-    }
+          // Remove existing step content
+          const existingStepContent = messagesContainer.querySelector('.step-content');
+          if (existingStepContent) {
+            existingStepContent.remove();
+          }
 
-    // Remove existing input section
-    const existingInputSection = messagesContainer.querySelector('.input-section');
-    if (existingInputSection) {
-    existingInputSection.remove();
-    }
+          // Remove existing input section
+          const existingInputSection = messagesContainer.querySelector('.input-section');
+          if (existingInputSection) {
+            existingInputSection.remove();
+          }
 
-    let stepContent = '';
+          let stepContent = '';
 
-    switch(state.step) {
-    case 1:
-    stepContent = `
+          switch (state.step) {
+            case 1:
+              stepContent = `
     <div class="input-section">
       <input type="text" name="name" placeholder="Your name" value="${state.formData.name}"
         oninput="handleInputChange('name', this.value)" class="form-input" />
     </div>
     `;
-    break;
+              break;
 
-    case 2:
-    stepContent = `
+            case 2:
+              stepContent = `
     <div class="input-section">
       <input type="tel" name="phone" placeholder="Your phone number" value="${state.formData.phone}"
         oninput="handleInputChange('phone', this.value)" class="form-input" />
     </div>
     `;
-    break;
+              break;
 
-    case 3:
-    stepContent = `
+            case 3:
+              stepContent = `
     <div class="input-section">
       <select name="service" value="${state.formData.service}" onchange="handleInputChange('service', this.value)"
         class="form-input">
@@ -504,10 +512,10 @@
       </select>
     </div>
     `;
-    break;
+              break;
 
-    case 4:
-    stepContent = `
+            case 4:
+              stepContent = `
     <div class="input-section">
       <select name="budget" value="${state.formData.budget}" onchange="handleInputChange('budget', this.value)"
         class="form-input">
@@ -520,10 +528,10 @@
       </select>
     </div>
     `;
-    break;
+              break;
 
-    case 5:
-    stepContent = `
+            case 5:
+              stepContent = `
     <div class="input-section">
       <select name="urgency" value="${state.formData.urgency}" onchange="handleInputChange('urgency', this.value)"
         class="form-input">
@@ -534,34 +542,38 @@
       </select>
     </div>
     `;
-    break;
+              break;
 
-    case 6:
-    stepContent = `
+            case 6:
+              stepContent = `
     <div class="input-section">
       <button class="btn btn-primary" onclick="handleFinalStep()">
         Book Appointment
       </button>
     </div>
     `;
-    break;
+              break;
 
-    default:
-    stepContent = '';
-    }
+            default:
+              stepContent = '';
+          }
 
-    if (stepContent) {
-    const tempDiv = document.createElement('div');
-    tempDiv.className = 'step-content';
-    tempDiv.innerHTML = stepContent;
-    messagesContainer.appendChild(tempDiv);
-    }
+          if (stepContent) {
+            const tempDiv = document.createElement('div');
+            tempDiv.className = 'step-content';
+            tempDiv.innerHTML = stepContent;
+            messagesContainer.appendChild(tempDiv);
+          }
 
-    // Handle input visibility
-    if (state.step < 6) { chatInput.innerHTML='<button onclick="handleNextStep()" class="btn btn-primary">Next</button>'
-      ; chatInput.style.display='flex' ; } else { chatInput.style.display='none' ; } } // Handle final step button click
-      function handleFinalStep() {
-      addMessage('system', 'Thank you for your information! Our team will contact you shortly.' ); } // Initialize -
+          // Handle input visibility
+          if (state.step < 6) {
+            chatInput.innerHTML = '<button onclick="handleNextStep()" class="btn btn-primary">Next</button>'
+              ; chatInput.style.display = 'flex';
+          } else { chatInput.style.display = 'none'; }
+        } // Handle final step button click
+        function handleFinalStep() {
+          addMessage('system', 'Thank you for your information! Our team will contact you shortly.');
+        } // Initialize -
       render initial messages renderMessages(); </script>
   </body>
 

@@ -1,0 +1,320 @@
+/* Business Login Page - Glassmorphism Theme Alignment */
+.business-login {
+  min-height: 100vh;
+  background: var(--auth-gradient, linear-gradient(135deg, #667eea 0%, #764ba2 100%)), 
+    radial-gradient(circle at 20% 80%, rgba(120,119,198,0.3) 0%, transparent 50%),
+    radial-gradient(circle at 80% 20%, rgba(255,119,198,0.3) 0%, transparent 50%);
+  background-blend-mode: overlay;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  animation: authBgShift 20s ease infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.business-login::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="rgba(255,255,255,0.05)"/><circle cx="75" cy="75" r="1.5" fill="rgba(255,255,255,0.03)"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+  pointer-events: none;
+  animation: grainShift 30s linear infinite;
+}
+
+@keyframes grainShift {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(100px, 100px); }
+}
+
+.business-login-container {
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-2xl);
+  padding: 3rem;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: var(--shadow-2xl), var(--neon-glow);
+  animation: glassFloat 6s ease-in-out infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.business-login-container::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  animation: shimmer 3s infinite;
+}
+
+@keyframes shimmer {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+.business-login-title {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.business-login-title h1 {
+  font-size: 2.5rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  text-shadow: 0 0 30px rgba(255,255,255,0.5);
+  animation: titleGlow 3s ease-in-out infinite alternate;
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+
+.business-login-subtitle {
+  color: rgba(255,255,255,0.9);
+  text-align: center;
+  margin-bottom: 2.5rem;
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.business-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-group {
+  position: relative;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.95);
+  font-size: 0.95rem;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 1.25rem 1rem;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: var(--radius-lg);
+  color: white;
+  font-size: 1rem;
+  transition: var(--transition);
+  backdrop-filter: blur(10px);
+}
+
+.form-group input::placeholder {
+  color: rgba(255,255,255,0.6);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary-light);
+  box-shadow: 0 0 0 3px rgba(102,126,234,0.2), var(--neon-glow);
+  background: rgba(255,255,255,0.2);
+}
+
+.forgot-password {
+  text-align: right;
+  margin-top: 0.5rem;
+}
+
+.forgot-password a {
+  color: var(--primary-light);
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 500;
+  transition: var(--transition);
+}
+
+.forgot-password a:hover {
+  text-decoration: underline;
+  color: white;
+}
+
+.business-login-btn {
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  color: white;
+  border: none;
+  padding: 1.25rem;
+  border-radius: var(--radius-lg);
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition-slow);
+  box-shadow: 0 8px 25px rgba(102,126,234,0.4);
+  position: relative;
+  overflow: hidden;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.business-login-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 35px rgba(102,126,234,0.6);
+}
+
+.business-login-btn:active {
+  transform: translateY(-1px);
+}
+
+.business-login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.divider {
+  text-align: center;
+  position: relative;
+  margin: 2rem 0;
+  color: rgba(255,255,255,0.6);
+}
+
+.divider::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: rgba(255,255,255,0.2);
+}
+
+.divider span {
+  background: var(--glass-bg);
+  padding: 0 1rem;
+}
+
+.oauth-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.oauth-btn {
+  flex: 1;
+  padding: 1rem;
+  border: 1px solid var(--glass-border);
+  background: var(--glass-bg);
+  border-radius: var(--radius-lg);
+  color: rgba(255,255,255,0.9);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  transition: var(--transition);
+  backdrop-filter: var(--glass-blur);
+}
+
+.oauth-btn:hover {
+  background: rgba(255,255,255,0.2);
+  border-color: var(--primary-light);
+  transform: translateY(-1px);
+}
+
+.create-account-link {
+  text-align: center;
+  margin-top: 1.5rem;
+  color: rgba(255,255,255,0.8);
+}
+
+.create-account-link a {
+  color: var(--primary-light);
+  font-weight: 600;
+  text-decoration: none;
+  transition: var(--transition);
+}
+
+.create-account-link a:hover {
+  color: white;
+  text-decoration: underline;
+}
+
+.business-features {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1rem;
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+
+.feature-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  color: rgba(255,255,255,0.9);
+}
+
+.feature-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--primary), var(--secondary));
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  box-shadow: var(--neon-glow);
+  animation: pulse 2s infinite;
+}
+
+/* Dark mode overrides */
+.dark .business-login-container {
+  background: rgba(15,23,42,0.95);
+  border-color: rgba(255,255,255,0.15);
+}
+
+.dark .form-group input {
+  background: rgba(255,255,255,0.08);
+  color: white;
+  border-color: rgba(255,255,255,0.2);
+}
+
+.dark .form-group input::placeholder {
+  color: rgba(255,255,255,0.5);
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .business-login-container {
+    margin: 1rem;
+    padding: 2rem 1.5rem;
+  }
+  
+  .business-login-title h1 {
+    font-size: 2rem;
+  }
+  
+  .oauth-buttons {
+    flex-direction: column;
+  }
+}
+
+/* Loading states */
+.loading {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border: 3px solid rgba(255,255,255,0.3);
+  border-radius: 50%;
+  border-top-color: white;
+  animation: spin 1s ease-in-out infinite;
+}

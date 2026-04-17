@@ -1,12 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import PasswordStrengthMeter from './PasswordStrengthMeter';
 
 const RegisterPage = ({ isModal = false }) => {
   const [step, setStep] = useState(1);
   const [role, setRole] = useState('');
-  const [formData, setFormData] = useState({
+const [formData, setFormData] = useState({
     email: '',
     password: '',
     name: '',
@@ -17,15 +16,14 @@ const RegisterPage = ({ isModal = false }) => {
     website: '',
     description: '',
     logo: null,
-    termsAccepted: false
+    termsAccepted: false,
+    joiningFee: false,
+    subscriptionPlan: ''
   });
+  // eslint-disable-next-line no-unused-vars
   const [progress, setProgress] = useState(0);
   const [errors, setErrors] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const { register } = useAuth();
-  const navigate = useNavigate();
-
+  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const { register } = useAuth();
@@ -45,7 +43,7 @@ const RegisterPage = ({ isModal = false }) => {
     if (step === 2) setStep(1);
   };
 
-  const handleSubmit = async (e) => {
+const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -56,6 +54,8 @@ const RegisterPage = ({ isModal = false }) => {
         password: formData.password,
         role,
         name: formData.name,
+        joiningFeePaid: formData.joiningFee || false,
+        subscriptionPlan: formData.subscriptionPlan || 'free'
       };
 
       if (role === 'business') {
@@ -72,7 +72,7 @@ const RegisterPage = ({ isModal = false }) => {
       const result = await register(payload);
       if (result.success) {
         setSuccess(true);
-        setTimeout(() => navigate('/admin'), 2000);
+        setTimeout(() => navigate('/subscription'), 2000);
       } else {
         setError(result.error);
       }
@@ -116,7 +116,7 @@ const RegisterPage = ({ isModal = false }) => {
           </div>
         )}
 
-        {step === 2 && (
+{step === 2 && (
           <form onSubmit={handleSubmit} className="register-form">
             <div className="form-step animate-slideInRight">
               <h2>{role === 'client' ? 'Client Details' : 'Business Details'}</h2>
@@ -180,7 +180,7 @@ const RegisterPage = ({ isModal = false }) => {
                       value={formData.phone_number}
                       onChange={handleChange}
                       required
-                      placeholder="+1 (555) 123-4567"
+                      placeholder="+27 (555) 123-4567"
                     />
                   </div>
 
@@ -232,26 +232,45 @@ const RegisterPage = ({ isModal = false }) => {
                 </>
               )}
 
-              {error && <div className="error-message animate-shake">{error}</div>}
-
               <div className="form-actions">
                 <button type="button" className="btn-secondary" onClick={handleBack}>
                   ← Back
                 </button>
-                <button type="submit" className="btn-primary" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <div className="loader-small"></div>
-                      Creating Account...
-                    </>
-                  ) : (
-                    'Create Account'
-                  )}
+                <button type="button" className="btn-primary" onClick={() => setStep(3)} disabled={loading || !formData.email || !formData.password || !formData.name}>
+                  Next: Choose Plan →
                 </button>
               </div>
             </div>
           </form>
         )}
+
+        {step === 3 && (
+          <div className="pricing-step">
+            <h2>Choose Your Plan</h2>
+            <p>R99 joining fee + monthly subscription</p>
+            <div style={{ display: 'grid', gap: '1rem', margin: '1rem 0' }}>
+              <label>
+                <input type="checkbox" name="joiningFee" checked={formData.joiningFee} onChange={handleChange} />
+                Pay R99 Joining Fee (one-time)
+              </label>
+              <select name="subscriptionPlan" value={formData.subscriptionPlan} onChange={handleChange} required>
+                <option value="">Select Monthly Plan</option>
+                <option value="starter">Starter - R199/month</option>
+                <option value="pro">Pro - R499/month</option>
+              </select>
+            </div>
+            {error && <div className="error-message">{error}</div>}
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={handleBack}>
+                ← Back
+              </button>
+              <button type="submit" className="btn-primary" onClick={handleSubmit} disabled={loading || !formData.subscriptionPlan}>
+                {loading ? 'Creating...' : 'Complete Registration & Subscribe'}
+              </button>
+            </div>
+          </div>
+        )}
+
 
         {success && (
           <div className="success-message animate-scale">
@@ -266,4 +285,3 @@ const RegisterPage = ({ isModal = false }) => {
 };
 
 export default RegisterPage;
-

@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import io from 'socket.io-client';
 import { useAuth } from './AuthContext';
 import axios from 'axios';
+import { get, set } from 'idb-keyval';
+import { ValidationAgent } from '../agents/validation.js';
 
 const ChatContext = createContext();
 
@@ -21,6 +23,7 @@ export const ChatProvider = ({ children }) => {
   const [onlineUsers, setOnlineUsers] = useState(new Set());
   const [typingUsers, setTypingUsers] = useState(new Set());
   const [loading, setLoading] = useState(false);
+  const [drafts, setDrafts] = useState({});
   const socketRef = useRef(null);
 
   // Initialize socket
@@ -36,6 +39,8 @@ export const ChatProvider = ({ children }) => {
     socket.on('connect', () => {
       console.log('Socket connected:', socket.id);
       socket.emit('userOnline', user.id);
+      // Sync offline queue
+      syncOfflineQueue();
     });
 
     socket.on('chatsUpdated', (updatedChats) => {
@@ -43,7 +48,7 @@ export const ChatProvider = ({ children }) => {
     });
 
     socket.on('messages', (newMessages) => {
-      if (currentChat &amp;&amp; newMessages[0].conversation_id === currentChat.id) {
+      if (currentChat && newMessages[0].conversation_id === currentChat.id) {
         setMessages((prev) => [...prev, ...newMessages]);
       }
     });
@@ -82,10 +87,28 @@ export const ChatProvider = ({ children }) => {
       console.log('Socket disconnected');
     });
 
+    // Recovery sync
+    const syncOfflineQueue = async () => {
+      const queue = await get('offlineQueue') || [];
+      for (const msgData of queue) {
+        try {
+          const response = await axios.post('/api/messages', msgData, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          // Remove from queue
+          const newQueue = queue.filter(m => m.tempId !== msgData.tempId);
+          await set('offlineQueue', newQueue);
+          socketRef.current.emit('sendMessage', response.data);
+        } catch (err) {
+          console.log('Retry failed, keeping in queue');
+        }
+      }
+    };
+
     return () => {
       socket.disconnect();
     };
-  }, [user, token, currentChat?.id]);
+  }, [user, token, currentChat]);
 
   const loadChats = useCallback(async () => {
     if (!user) return;
@@ -114,48 +137,53 @@ export const ChatProvider = ({ children }) => {
   }, [token]);
 
   const sendMessage = useCallback(async (conversationId, content, type = 'text') => {
+    // AO Agent: Validation
+    const validation = ValidationAgent.validate(content);
+    if (!validation.valid) {
+      console.warn('ValidationAgent blocked:', validation.warning);
+      return { blocked: true, reason: validation.warning };
+    }
+
     const messageData = {
       conversation_id: conversationId,
-      content,
+      content: ValidationAgent.sanitize(content),
       type,
       sender: 'user'
     };
 
-    try {
-      // Optimistic update
-      const tempId = Date.now();
-      const tempMessage = {
-        ...messageData,
-        id: tempId,
-        status: 'sending',
-        created_at: new Date().toISOString()
-      };
-      setMessages((prev) => [...prev, tempMessage]);
+    const tempId = Date.now();
+    const tempMessage = {
+      ...messageData,
+      id: tempId,
+      status: 'sending',
+      created_at: new Date().toISOString()
+    };
+    setMessages((prev) => [...prev, tempMessage]);
 
-      // API + Socket
+    try {
       const response = await axios.post('/api/messages', messageData, {
         headers: { Authorization: `Bearer ${token}` }
       });
-
-      // Update with real data
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === tempId ? { ...response.data, status: 'sent' } : msg
         )
       );
-
-      // Socket broadcast
       socketRef.current.emit('sendMessage', response.data);
-
     } catch (error) {
       console.error('Error sending message:', error);
+      // Offline queue
+      const queueItem = { ...messageData, tempId };
+      const queue = await get('offlineQueue') || [];
+      await set('offlineQueue', [...queue, queueItem]);
       setMessages((prev) =>
         prev.map((msg) =>
-          msg.id === tempId ? { ...msg, status: 'failed' } : msg
+          msg.id === tempId ? { ...msg, status: 'queued' } : msg
         )
       );
     }
   }, [token]);
+
 
   const startTyping = useCallback((conversationId) => {
     socketRef.current.emit('typing', { conversationId, isTyping: true });
@@ -169,10 +197,34 @@ export const ChatProvider = ({ children }) => {
     socketRef.current.emit('messageRead', { conversationId, messageIds });
   }, []);
 
+  const updateDraft = useCallback((conversationId, content) => {
+    setDrafts((prev) => ({
+      ...prev,
+      [conversationId]: content
+    }));
+  }, []);
+
   const joinChat = useCallback((conversationId) => {
     socketRef.current.emit('joinChat', conversationId);
     setCurrentChat(chats.find((c) => c.id === conversationId));
   }, [chats]);
+
+  // Meeting functions
+  const [meetings, setMeetings] = useState([]);
+  const loadMeetings = useCallback(async () => {
+    try {
+      const res = await axios.get('/api/meetings', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setMeetings(res.data.meetings || []);
+    } catch (err) {
+      console.error('Error loading meetings:', err);
+    }
+  }, [token]);
+
+  const joinMeeting = useCallback((meetingId) => {
+    socketRef.current.emit('joinMeeting', meetingId);
+  }, []); 
 
   const value = {
     chats,
@@ -181,14 +233,19 @@ export const ChatProvider = ({ children }) => {
     onlineUsers,
     typingUsers,
     loading,
+    drafts,
+    meetings,
     loadChats,
     loadMessages,
+    loadMeetings,
     sendMessage,
     startTyping,
     stopTyping,
     markMessagesRead,
     joinChat,
-    setCurrentChat
+    joinMeeting,
+    setCurrentChat,
+    updateDraft
   };
 
   return (
@@ -197,4 +254,3 @@ export const ChatProvider = ({ children }) => {
     </ChatContext.Provider>
   );
 };
-

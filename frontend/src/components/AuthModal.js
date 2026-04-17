@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import LoginPage from './LoginPage';
 import RegisterPage from './RegisterPage';
 import { useAuth } from '../context/AuthContext';
@@ -57,6 +57,8 @@ const AuthModal = ({ isOpen, onClose, initialTab = 'login' }) => {
       </div>
     </div>
   );
+};
 
+export default AuthModal;
 
 

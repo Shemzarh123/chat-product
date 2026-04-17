@@ -1,3 +1,16 @@
 {
-    "claudeCode.useTerminal": true
+    "claudeCode.useTerminal": true,
+    "json.schemas": [
+        {
+            "fileMatch": ["package.json"],
+            "url": "https://json.schemastore.org/package.json"
+        },
+        {
+            "fileMatch": ["frontend/package.json"],
+            "url": "https://json.schemastore.org/package.json"
+        }
+    ],
+    "json.validate": true,
+    "json.format.enable": true,
+    "github.copilot.chat.agentDebugLog.fileLogging.enabled": true
 }
